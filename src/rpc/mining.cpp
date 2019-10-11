@@ -126,10 +126,24 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
             LOCK(cs_main);
             IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
         }
-        while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount && !CheckProofOfWork(pblock->GetPoWHash(), pblock->nBits, Params().GetConsensus())) {
-            ++pblock->nNonce;
-            --nMaxTries;
+
+        // cvasqxz PMC2 implementation
+
+        bool isPMC2Active = nHeight >= Params().GetConsensus().PMC2;
+
+        if (!isPMC2Active) {
+            while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount && !CheckProofOfWork(pblock->GetPoWHash(), pblock->nBits, Params().GetConsensus(), nHeight)) {
+                ++pblock->nNonce;
+                --nMaxTries;
+            }
+        } else {        
+            while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount && !CheckProofOfWork(pblock->GetPowScryptCHA(), pblock->nBits, Params().GetConsensus(), nHeight)) {
+                ++pblock->nNonce;
+                --nMaxTries;
+            }
         }
+
+
         if (nMaxTries == 0) {
             break;
         }

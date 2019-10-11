@@ -28,7 +28,7 @@
  */
 
 #include "crypto/scrypt.h"
-//#include "util.h"
+#include "util.h"
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
@@ -254,7 +254,7 @@ static inline void xor_salsa8(uint32_t B[16], const uint32_t Bx[16])
 	B[15] += x15;
 }
 
-void scrypt_1024_1_1_256_sp_generic(const char *input, char *output, char *scratchpad)
+void scrypt_1024_1_1_256_sp_generic(const char *input, char *output, char *scratchpad, int N)
 {
 	uint8_t B[128];
 	uint32_t X[32];
@@ -268,13 +268,13 @@ void scrypt_1024_1_1_256_sp_generic(const char *input, char *output, char *scrat
 	for (k = 0; k < 32; k++)
 		X[k] = le32dec(&B[4 * k]);
 
-	for (i = 0; i < 1024; i++) {
+	for (i = 0; i < N; i++) {
 		memcpy(&V[i * 32], X, 128);
 		xor_salsa8(&X[0], &X[16]);
 		xor_salsa8(&X[16], &X[0]);
 	}
-	for (i = 0; i < 1024; i++) {
-		j = 32 * (X[16] & 1023);
+	for (i = 0; i < N; i++) {
+		j = 32 * (X[16] & (N - 1));
 		for (k = 0; k < 32; k++)
 			X[k] ^= V[j + k];
 		xor_salsa8(&X[0], &X[16]);
@@ -327,6 +327,12 @@ std::string scrypt_detect_sse2()
 
 void scrypt_1024_1_1_256(const char *input, char *output)
 {
-	char scratchpad[SCRYPT_SCRATCHPAD_SIZE];
-    scrypt_1024_1_1_256_sp(input, output, scratchpad);
+	char scratchpad[1024*128 + 63];
+    scrypt_1024_1_1_256_sp(input, output, scratchpad, (1 << (9 + 1)));
+}
+
+void ScryptCHA(const char *input, char *output)
+{
+	char scratchpad[(1 << (14 + 1))*128+ 63];
+    scrypt_1024_1_1_256_sp(input, output, scratchpad,  (1 << (14 + 1)));
 }

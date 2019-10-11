@@ -297,6 +297,12 @@ public:
         return GetBlockHeader().GetPoWHash();
     }
 
+    uint256 GetBlockGetPowScryptCHA() const
+    {
+        return GetBlockHeader().GetPowScryptCHA();
+    }
+
+
     int64_t GetBlockTime() const
     {
         return (int64_t)nTime;

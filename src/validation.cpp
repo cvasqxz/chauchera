@@ -1098,6 +1098,8 @@ bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus:
 {
     block.SetNull();
 
+    int nHeight = chainActive.Height();
+
     // Open history file to read
     CAutoFile filein(OpenBlockFile(pos, true), SER_DISK, CLIENT_VERSION);
     if (filein.IsNull())
@@ -1111,9 +1113,17 @@ bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus:
         return error("%s: Deserialize or I/O error - %s at %s", __func__, e.what(), pos.ToString());
     }
 
-    // Check the header
-    if (!CheckProofOfWork(block.GetPoWHash(), block.nBits, consensusParams))
-        return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
+    // cvasqxz PMC2 implementation
+
+    bool isPMC2Active = nHeight >= consensusParams.PMC2;
+
+    if (!isPMC2Active) {
+        if (!CheckProofOfWork(block.GetPoWHash(), block.nBits, consensusParams, nHeight))
+            return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
+    } else {
+        if (!CheckProofOfWork(block.GetPowScryptCHA(), block.nBits, consensusParams, nHeight))
+            return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
+    }
 
     return true;
 }
@@ -2178,13 +2188,17 @@ void static UpdateTip(const CBlockIndex *pindexNew, const CChainParams& chainPar
             DoWarning(strWarning);
         }
     }
-    LogPrintf("%s: new best=%s height=%d version=0x%08x tx=%lu date='%s' cache=%.1fMiB(%utxo)", __func__,
+    LogPrintf("%s: new best=%s height=%d version=0x%08x tx=%lu date='%s' cache=%.1fMiB(%utxo)\nPowHash=%s ScryptCHAPowHash=%s",
+         __func__,
         pindexNew->GetBlockHash().ToString(),
-        pindexNew->nHeight, pindexNew->nVersion,
+        pindexNew->nHeight,
+        pindexNew->nVersion,
         (unsigned long)pindexNew->nChainTx,
         DateTimeStrFormat("%Y-%m-%d %H:%M:%S", pindexNew->GetBlockTime()),
         pcoinsTip->DynamicMemoryUsage() * (1.0 / (1<<20)),
-        pcoinsTip->GetCacheSize()
+        pcoinsTip->GetCacheSize(),
+        pindexNew->GetBlockPoWHash().ToString(),
+        pindexNew->GetBlockGetPowScryptCHA().ToString()
     );
 
     if (!warningMessages.empty())
@@ -2968,9 +2982,21 @@ static bool FindUndoPos(CValidationState &state, int nFile, CDiskBlockPos &pos, 
 
 static bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = true)
 {
-    // Check proof of work matches claimed amount
-    if (fCheckPOW && !CheckProofOfWork(block.GetPoWHash(), block.nBits, consensusParams))
-        return state.DoS(50, false, REJECT_INVALID, "high-hash", false, "proof of work failed");
+    int nHeight = chainActive.Height();
+
+    // cvasqxz PMC2 implementation
+
+    bool isPMC2Active = nHeight >= consensusParams.PMC2;
+
+    if (!isPMC2Active) {
+        // Check proof of work matches claimed amount
+        if (fCheckPOW && !CheckProofOfWork(block.GetPoWHash(), block.nBits, consensusParams, nHeight))
+            return state.DoS(50, false, REJECT_INVALID, "high-hash", false, "proof of work failed");
+    } else {
+        // Check proof of work matches claimed amount
+        if (fCheckPOW && !CheckProofOfWork(block.GetPowScryptCHA(), block.nBits, consensusParams, nHeight))
+            return state.DoS(50, false, REJECT_INVALID, "high-hash", false, "proof of work failed");
+    }
 
     return true;
 }
